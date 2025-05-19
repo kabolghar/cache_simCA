@@ -1,6 +1,7 @@
 #include <iostream>
 #include  <iomanip>
 #include <vector>
+#include <cmath>
 
 using namespace std;
 
@@ -22,6 +23,9 @@ struct cache {
     int num_sets;       
     int num_ways;      
     int line_size;      
+
+
+
 };
 
 enum line_size{
@@ -108,14 +112,34 @@ cache* initCache(int cache_size, int line_size, int associativity) {
     return c;
 }
 
+// Global cache pointer
+cache* g_cache = nullptr;
+
 // Direct Mapped Cache Simulator
 cacheResType cacheSimDM(unsigned int addr)
 {	
-	// This function accepts the memory address for the memory transaction and 
-	// returns whether it caused a cache miss or a cache hit
-	
-	// The current implementation assumes there is no cache; so, every transaction is a miss
-	return MISS;
+    if (!g_cache) {
+        // Initialize cache if not already done
+        g_cache = initCache(CACHE_SIZE, L32, DIRECT_MAPPED);
+    }
+
+    // Calculate tag and index
+    int offset_bits = log2(g_cache->line_size);
+    int index_bits = log2(g_cache->num_sets);
+    int tag_bits = 32 - offset_bits - index_bits;
+
+    unsigned int tag = addr >> (offset_bits + index_bits);
+    unsigned int index = (addr >> offset_bits) & ((1 << index_bits) - 1);
+
+    // Check if the line is valid and tag matches
+    if (g_cache->sets[index][0].valid && g_cache->sets[index][0].tag == tag) {
+        return HIT;
+    }
+
+    // Cache miss - update the cache line
+    g_cache->sets[index][0].valid = 1;
+    g_cache->sets[index][0].tag = tag;
+    return MISS;
 }
 
 // Fully Associative Cache Simulator
