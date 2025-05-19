@@ -23,9 +23,6 @@ struct cache {
     int num_sets;       
     int num_ways;      
     int line_size;      
-
-
-
 };
 
 enum line_size{
@@ -145,29 +142,121 @@ cacheResType cacheSimDM(unsigned int addr)
 // Fully Associative Cache Simulator
 cacheResType cacheSimFA(unsigned int addr)
 {	
-	// This function accepts the memory address for the read and 
-	// returns whether it caused a cache miss or a cache hit
+    if (!g_cache) {
+        // Initialize cache if not already done
+        g_cache = initCache(CACHE_SIZE, L32, CACHE_SIZE/L32); // For fully associative, num_ways = cache_size/line_size
+    }
 
-	// The current implementation assumes there is no cache; so, every transaction is a miss
-	return MISS;
+    // Calculate tag (in fully associative, we only need tag as there's no index)
+    int offset_bits = log2(g_cache->line_size);
+    unsigned int tag = addr >> offset_bits;
+
+    // Search through all cache lines for a match
+    for (int i = 0; i < g_cache->num_sets; i++) {
+        if (g_cache->sets[i][0].valid && g_cache->sets[i][0].tag == tag) {
+            // Update LRU tracker
+            g_cache->sets[i][0].tracker = 0;
+            // Increment all other trackers
+            for (int j = 0; j < g_cache->num_sets; j++) {
+                if (j != i) g_cache->sets[j][0].tracker++;
+            }
+            return HIT;
+        }
+    }
+
+    // Cache miss - find least recently used line
+    int lru_index = 0;
+    int max_tracker = g_cache->sets[0][0].tracker;
+    
+    for (int i = 1; i < g_cache->num_sets; i++) {
+        if (g_cache->sets[i][0].tracker > max_tracker) {
+            max_tracker = g_cache->sets[i][0].tracker;
+            lru_index = i;
+        }
+    }
+
+    // Update the LRU line
+    g_cache->sets[lru_index][0].valid = 1;
+    g_cache->sets[lru_index][0].tag = tag;
+    g_cache->sets[lru_index][0].tracker = 0;
+
+    // Increment all other trackers
+    for (int i = 0; i < g_cache->num_sets; i++) {
+        if (i != lru_index) g_cache->sets[i][0].tracker++;
+    }
+
+    return MISS;
 }
-char *msg[2] = {"Miss","Hit"};
+const char *msg[2] = {"Miss","Hit"};
 
-#define		NO_OF_Iterations	100		// CHange to 1,000,000
-int main()
-{
-	unsigned int hit = 0;
-	cacheResType r;
-	
-	unsigned int addr;
-	cout << "Direct Mapped Cache Simulator\n";
+#define		NO_OF_Iterations	1000000
 
-	for(int inst=0;inst<NO_OF_Iterations;inst++)
-	{
-		addr = memGen2();
-		r = cacheSimDM(addr);
-		if(r == HIT) hit++;
-		cout <<"0x" << setfill('0') << setw(8) << hex << addr <<" ("<< msg[r] <<")\n";
-	}
-	cout << "Hit ratio = " << (100*hit/NO_OF_Iterations)<< endl;
+void runExperiment(int line_size, int associativity, unsigned int (*memGen)(), const char* gen_name) {
+    unsigned int hit = 0;
+    cacheResType r;
+    unsigned int addr;
+    
+    // Initialize cache with given parameters
+    if (g_cache) {
+        delete g_cache;
+    }
+    g_cache = initCache(CACHE_SIZE, line_size, associativity);
+    
+    for(int inst = 0; inst < NO_OF_Iterations; inst++) {
+        addr = memGen();
+        r = cacheSimDM(addr);
+        if(r == HIT) hit++;
+    }
+    
+    cout << gen_name << " - Line size: " << line_size << " bytes, Ways: " << associativity 
+         << " - Hit ratio = " << (100.0 * hit / NO_OF_Iterations) << "%" << endl;
+}
+
+int main() {
+    cout << "Cache Performance Analysis\n";
+    cout << "Running " << NO_OF_Iterations << " iterations per experiment\n\n";
+    
+    // Array of memory generators and their names
+    struct {
+        unsigned int (*func)();
+        const char* name;
+    } generators[] = {
+        {memGen1, "memGen1"},
+        {memGen2, "memGen2"},
+        {memGen3, "memGen3"},
+        {memGen4, "memGen4"},
+        {memGen5, "memGen5"},
+        {memGen6, "memGen6"}
+    };
+    
+    // Run experiments for each generator
+    for (auto& gen : generators) {
+        cout << "\n=== Using " << gen.name << " ===\n";
+        
+        // Experiment 1: Fixed sets (4) with varying line sizes
+        cout << "Experiment 1: Fixed sets (4) with varying line sizes\n";
+        int associativity = CACHE_SIZE / (4 * L16); // For 16-byte lines
+        
+        runExperiment(L16, associativity, gen.func, gen.name);
+        runExperiment(L32, associativity/2, gen.func, gen.name);
+        runExperiment(L64, associativity/4, gen.func, gen.name);
+        runExperiment(L128, associativity/8, gen.func, gen.name);
+        
+        // Experiment 2: Fixed line size (64 bytes) with varying ways
+        cout << "\nExperiment 2: Fixed line size (64 bytes) with varying ways\n";
+        
+        runExperiment(L64, DIRECT_MAPPED, gen.func, gen.name);
+        runExperiment(L64, MAPPED_2WAY, gen.func, gen.name);
+        runExperiment(L64, MAPPED_4WAY, gen.func, gen.name);
+        runExperiment(L64, MAPPED_8WAY, gen.func, gen.name);
+        runExperiment(L64, MAPPED_16WAY, gen.func, gen.name);
+    }
+    
+    // Clean up
+    if (g_cache) {
+        delete g_cache;
+        g_cache = nullptr;
+    }
+    
+    return 0;
 }
