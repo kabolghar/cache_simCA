@@ -128,14 +128,34 @@ cacheResType cacheSimDM(unsigned int addr)
     unsigned int tag = addr >> (offset_bits + index_bits);
     unsigned int index = (addr >> offset_bits) & ((1 << index_bits) - 1);
 
-    // Check if the line is valid and tag matches
-    if (g_cache->sets[index][0].valid && g_cache->sets[index][0].tag == tag) {
-        return HIT;
+    // Check all ways in the set for a hit
+    for (int way = 0; way < g_cache->num_ways; way++) {
+        if (g_cache->sets[index][way].valid && g_cache->sets[index][way].tag == tag) {
+            return HIT;
+        }
     }
 
-    // Cache miss - update the cache line
-    g_cache->sets[index][0].valid = 1;
-    g_cache->sets[index][0].tag = tag;
+    // Cache miss - find least recently used line in the set
+    int lru_way = 0;
+    int max_tracker = g_cache->sets[index][0].tracker;
+    
+    for (int way = 1; way < g_cache->num_ways; way++) {
+        if (g_cache->sets[index][way].tracker > max_tracker) {
+            max_tracker = g_cache->sets[index][way].tracker;
+            lru_way = way;
+        }
+    }
+
+    // Update the LRU line
+    g_cache->sets[index][lru_way].valid = 1;
+    g_cache->sets[index][lru_way].tag = tag;
+    g_cache->sets[index][lru_way].tracker = 0;
+
+    // Increment all other trackers in the set
+    for (int way = 0; way < g_cache->num_ways; way++) {
+        if (way != lru_way) g_cache->sets[index][way].tracker++;
+    }
+
     return MISS;
 }
 
