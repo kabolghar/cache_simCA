@@ -50,36 +50,36 @@ unsigned int rand_()
     return (m_z << 16) + m_w;  /* 32-bit result */
 }
 
-unsigned int memGen1()
+unsigned int memGen1() // sequential incr by 1 bet3eed 3and dram size
 {
 	static unsigned int addr=0;
 	return (addr++)%(DRAM_SIZE);
 }
 
-unsigned int memGen2()
+unsigned int memGen2() // generates a random address within limit of 24 kb // small random
 {
 	static unsigned int addr=0;
 	return  rand_()%(24*1024);
 }
 
-unsigned int memGen3()
+unsigned int memGen3()  // // generates a random address within dram // big random // worst case performance
 {
 	return rand_()%(DRAM_SIZE);
 }
 
-unsigned int memGen4()
+unsigned int memGen4() // sequential 3ala meory small
 {
 	static unsigned int addr=0;
 	return (addr++)%(4*1024);
 }
 
-unsigned int memGen5()
-{
+unsigned int memGen5() // sequntail 3ala memory shabah 4 bas dram= 7agm el cache fa u can fit the dram gowa el cache
+{ // miss wahda bas
 	static unsigned int addr=0;
 	return (addr++)%(1024*64);
 }
 
-unsigned int memGen6()
+unsigned int memGen6() //sequntial by 32bytes witin a 256 kb region. with regualar not sequantial access patterns
 {
 	static unsigned int addr=0;
 	return (addr+=32)%(64*4*1024);
@@ -138,7 +138,7 @@ cacheResType cacheSimDM(unsigned int addr)
     // Cache miss - find least recently used line in the set
     int lru_way = 0;
     int max_tracker = g_cache->sets[index][0].tracker;
-    
+    // the higher the tracker value the less its not been used
     for (int way = 1; way < g_cache->num_ways; way++) {
         if (g_cache->sets[index][way].tracker > max_tracker) {
             max_tracker = g_cache->sets[index][way].tracker;
