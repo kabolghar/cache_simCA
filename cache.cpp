@@ -204,7 +204,13 @@ void runExperiment(int line_size, int associativity, unsigned int (*memGen)(), c
     
     for(int inst = 0; inst < NO_OF_Iterations; inst++) {
         addr = memGen();
-        r = cacheSimDM(addr);
+        // Use FA for fully associative (when associativity equals cache_size/line_size)
+        // Otherwise use DM
+        if (associativity == CACHE_SIZE/line_size) {
+            r = cacheSimFA(addr);
+        } else {
+            r = cacheSimDM(addr);
+        }
         if(r == HIT) hit++;
     }
     
